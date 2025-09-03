@@ -309,25 +309,5 @@ else:
         # Transaction table (no pagination)
         st.subheader("📋 Transaction Table")
         
-        # Format data for display
-        display_data = filtered_data_for_display.copy()
-        
-        # Clean and format numeric columns - handle mixed data types
-        numeric_cols = ['buyVolume', 'buyVwap', 'sellVolume', 'sellVwap', 'idealProfit']
-        for col in numeric_cols:
-            if col in display_data.columns:
-                # Convert to numeric, coercing errors to NaN
-                display_data[col] = pd.to_numeric(display_data[col], errors='coerce')
-                # Format as string with thousands separator, handling NaN values
-                display_data[col] = display_data[col].apply(
-                    lambda x: f"{x:,.0f}" if pd.notna(x) and x is not None else "N/A"
-                )
-        
-        # Format date
-        if 'dateTraded' in display_data.columns:
-            display_data['dateTraded'] = display_data['dateTraded'].apply(
-                lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) else "N/A"
-            )
-        
-        # Display the table
-        st.dataframe(display_data, width='stretch')
+        # Display raw data without formatting
+        st.dataframe(filtered_data_for_display, width='stretch')

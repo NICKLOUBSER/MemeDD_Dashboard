@@ -93,13 +93,8 @@ def show_calculations():
     comparison_data['difference'] = comparison_data['idealProfit'] - comparison_data['original_idealProfit']
     comparison_data['match'] = comparison_data['difference'].abs() < 0.01  # Consider values within 0.01 as matching
     
-    # Format the comparison data
-    formatted_comparison = comparison_data.copy()
-    numeric_cols = ['idealProfit', 'original_idealProfit', 'difference']
-    for col in numeric_cols:
-        formatted_comparison[col] = formatted_comparison[col].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else x)
-    
-    st.dataframe(formatted_comparison, width='stretch')
+    # Display raw comparison data
+    st.dataframe(comparison_data, width='stretch')
     
     # Show summary statistics
     st.subheader("📈 Summary Statistics")
@@ -149,13 +144,89 @@ def show_calculations():
     
     # Show full data with both values
     st.subheader("📄 Full Transaction Data")
-    # Format dataframe to show no decimal points
-    formatted_data = data.copy()
-    numeric_columns = formatted_data.select_dtypes(include=['float64', 'int64']).columns
-    for col in numeric_columns:
-        formatted_data[col] = formatted_data[col].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else x)
+    # Display raw data without formatting
+    st.dataframe(data, width='stretch')
     
-    st.dataframe(formatted_data, width='stretch')
+    # New section: Group by sellBase within 20-minute windows
+    st.subheader("🕐 SellBase Grouping (20-Minute Windows)")
+    
+    if 'sellBase' in data.columns:
+        # Create a copy of data for grouping
+        grouped_data = data.copy()
+        
+        # Round dateTraded to nearest 20-minute interval
+        grouped_data['time_window'] = grouped_data['dateTraded'].dt.floor('20min')
+        
+        # Group by sellBase and 20-minute time window
+        grouped_results = grouped_data.groupby(['sellBase', 'time_window']).agg({
+            'idealProfit': ['sum', 'count', 'mean'],
+            'buyVolume': 'sum',
+            'sellVolume': 'sum',
+            'buyVwap': 'mean',
+            'sellVwap': 'mean',
+            'id': 'count'  # Count of transactions
+        }).reset_index()
+        
+        # Flatten column names
+        grouped_results.columns = [
+            'sellBase', 'time_window', 'total_profit', 'transaction_count', 
+            'avg_profit', 'total_buy_volume', 'total_sell_volume', 
+            'avg_buy_vwap', 'avg_sell_vwap', 'trade_count'
+        ]
+        
+        # Sort by sellBase and time_window
+        grouped_results = grouped_results.sort_values(['sellBase', 'time_window'])
+        
+        # Display the grouped data
+        st.dataframe(grouped_results, width='stretch')
+        
+        # Summary statistics for grouped data
+        st.subheader("📊 Grouped Data Summary")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            total_groups = len(grouped_results)
+            st.metric("Total Groups", f"{total_groups:,}")
+        
+        with col2:
+            total_profit_groups = grouped_results['total_profit'].sum()
+            st.metric("Total Profit (All Groups)", f"${total_profit_groups:,.0f}")
+        
+        with col3:
+            avg_profit_per_group = grouped_results['total_profit'].mean()
+            st.metric("Avg Profit per Group", f"${avg_profit_per_group:,.0f}")
+        
+        with col4:
+            total_transactions = grouped_results['transaction_count'].sum()
+            st.metric("Total Transactions", f"{total_transactions:,}")
+        
+        # Show top performing sellBase groups
+        st.subheader("🏆 Top Performing SellBase Groups")
+        
+        # Get top 10 groups by total profit
+        top_groups = grouped_results.nlargest(10, 'total_profit')
+        
+        fig_top_groups = px.bar(
+            top_groups,
+            x='sellBase',
+            y='total_profit',
+            title='Top 10 SellBase Groups by Total Profit',
+            labels={'total_profit': 'Total Profit ($)', 'sellBase': 'Sell Base'},
+            color='total_profit',
+            color_continuous_scale='RdYlGn'
+        )
+        
+        fig_top_groups.update_layout(
+            xaxis_title="Sell Base",
+            yaxis_title="Total Profit ($)",
+            height=400,
+            xaxis={'tickangle': -45}
+        )
+        
+        st.plotly_chart(fig_top_groups, use_container_width=True)
+        
+    else:
+        st.warning("sellBase column not found in the data")
 
 # Run the calculations page
 show_calculations()
