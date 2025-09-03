@@ -262,49 +262,100 @@ else:
         # Trade selection dropdown
         st.subheader("🔍 Select Trade for Detailed Analysis")
         
-        # Create formatted display data for dropdown
-        display_data = []
-        for idx, row in filtered_data_for_display.iterrows():
-            # Handle potential mixed data types in idealProfit
-            profit_value = row['idealProfit']
-            if pd.notna(profit_value) and profit_value is not None:
-                try:
-                    profit_display = f"${float(profit_value):,.0f}"
-                except (ValueError, TypeError):
+        # Add search functionality next to dropdown
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Create formatted display data for dropdown
+            display_data = []
+            for idx, row in filtered_data_for_display.iterrows():
+                # Handle potential mixed data types in idealProfit
+                profit_value = row['idealProfit']
+                if pd.notna(profit_value) and profit_value is not None:
+                    try:
+                        profit_display = f"${float(profit_value):,.0f}"
+                    except (ValueError, TypeError):
+                        profit_display = "N/A"
+                else:
                     profit_display = "N/A"
+                
+                display_data.append({
+                    'index': idx,
+                    'display': f"Trade #{row['id']} - {row['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display} - {row.get('sellBase', 'Unknown')}"
+                })
+            
+            # Create dropdown options
+            dropdown_options = [item['display'] for item in display_data]
+            
+            if dropdown_options:
+                selected_trade_display = st.selectbox(
+                    "Choose a trade to analyze:",
+                    dropdown_options,
+                    index=0
+                )
+                
+                # Find the selected trade data
+                selected_index = dropdown_options.index(selected_trade_display)
+                selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['index']]
+                
+                # Store selected trade in session state for navigation
+                st.session_state.selected_trade_data = selected_trade_data
+                st.session_state.selected_trade_id = selected_trade_data['id']
+                
+                # Show quick preview
+                st.success(f"Selected: {selected_trade_display}")
+                
+                # Navigation button
+                if st.button("📊 View Detailed Analysis"):
+                    # Navigate to Arb Info page
+                    st.switch_page("pages/2_Arb_Info.py")
+        
+        with col2:
+            # Search input and button in a single row
+            search_col1, search_col2 = st.columns([2, 1])
+            
+            with search_col1:
+                search_trade_id = st.text_input("Enter Trade ID:", placeholder="e.g., 3562", key="search_input")
+            
+            with search_col2:
+                st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with input
+                if st.button("🔍 Search", type="primary", key="search_button"):
+                    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with input
+
+            if search_trade_id and search_trade_id.strip():
+                try:
+                    # Create database connection
+                    engine = create_engine(
+                        f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
+                        f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+                    )
+
+                    # Query for the specific trade
+                    query = f"SELECT * FROM arbtransaction WHERE id = {search_trade_id.strip()}"
+                    search_result = pd.read_sql(query, engine)
+
+                    if not search_result.empty:
+                        # Store the found trade in session state
+                        st.session_state.selected_trade_data = search_result.iloc[0]
+                        st.session_state.selected_trade_id = search_result.iloc[0]['id']
+
+                        # Show notifications below the search area
+                        st.success(f"✅ Trade ID {search_trade_id} found!")
+
+                        # Show trade preview
+                        trade_data = search_result.iloc[0]
+                        profit_display = f"${float(trade_data['idealProfit']):,.0f}" if pd.notna(trade_data['idealProfit']) else "N/A"
+                        st.info(f"**Found:** ID {trade_data['id']} - {trade_data['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display}")
+
+                        # Navigation button
+                        if st.button("📊 View Analysis", key="search_nav"):
+                            st.switch_page("pages/2_Arb_Info.py")
+                    else:
+                        st.error(f"❌ Trade ID {search_trade_id} not found.")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
             else:
-                profit_display = "N/A"
-            
-            display_data.append({
-                'index': idx,
-                'display': f"Trade #{row['id']} - {row['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display} - {row.get('sellBase', 'Unknown')}"
-            })
-        
-        # Create dropdown options
-        dropdown_options = [item['display'] for item in display_data]
-        
-        if dropdown_options:
-            selected_trade_display = st.selectbox(
-                "Choose a trade to analyze:",
-                dropdown_options,
-                index=0
-            )
-            
-            # Find the selected trade data
-            selected_index = dropdown_options.index(selected_trade_display)
-            selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['index']]
-            
-            # Store selected trade in session state for navigation
-            st.session_state.selected_trade_data = selected_trade_data
-            st.session_state.selected_trade_id = selected_trade_data['id']
-            
-            # Show quick preview
-            st.success(f"Selected: {selected_trade_display}")
-            
-            # Navigation button
-            if st.button("📊 View Detailed Analysis"):
-                # Navigate to Arb Info page
-                st.switch_page("pages/2_Arb_Info.py")
+                st.warning("⚠️ Please enter a Trade ID.")
         
         # Transaction table (no pagination)
         st.subheader("📋 Transaction Table")

@@ -75,6 +75,8 @@ def show_arb_info():
                     profit_display = "N/A"
                 st.write(f"**Profit:** {profit_display}")
 
+            with colsub2:
+
                 # Handle buy volume formatting
                 try:
                     buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
@@ -85,13 +87,11 @@ def show_arb_info():
                 except (ValueError, TypeError):
                     buy_vol_display = "N/A"
                 st.write(f"**Buy Volume:** {buy_vol_display}")
-            
-            with colsub2:
                 # Handle buy VWAP formatting
                 try:
                     buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
                     if pd.notna(buy_vwap):
-                        buy_vwap_display = f"${buy_vwap:,.2f}"
+                        buy_vwap_display = f"${buy_vwap}"
                     else:
                         buy_vwap_display = "N/A"
                 except (ValueError, TypeError):
@@ -113,7 +113,7 @@ def show_arb_info():
                 try:
                     sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
                     if pd.notna(sell_vwap):
-                        sell_vwap_display = f"${sell_vwap:,.2f}"
+                        sell_vwap_display = f"${sell_vwap}"
                     else:
                         sell_vwap_display = "N/A"
                 except (ValueError, TypeError):
@@ -267,57 +267,56 @@ def show_arb_info():
         
         # Card 4: Complete Trade Data
         st.markdown("### 📋 Complete Trade Data")
-        with st.container():
-            formatted_trade = selected_trade_data.copy()
-            
-            # Format numeric columns based on requirements - handle mixed data types
-            for col in formatted_trade.index:
-                if col in ['idealProfit', 'buyVolume', 'sellVolume', 'buyTotal', 'sellTotal']:
-                    # Convert to numeric first, then format
-                    try:
-                        numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
-                        if pd.notna(numeric_val):
-                            formatted_trade[col] = f"{numeric_val:,.0f}"
-                        else:
-                            formatted_trade[col] = "N/A"
-                    except (ValueError, TypeError):
-                        formatted_trade[col] = "N/A"
-                elif col in ['buyVwap', 'sellVwap']:
-                    # Convert to numeric first, then format with 4 decimals
-                    try:
-                        numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
-                        if pd.notna(numeric_val):
-                            formatted_trade[col] = f"{numeric_val:,.4f}"
-                        else:
-                            formatted_trade[col] = "N/A"
-                    except (ValueError, TypeError):
-                        formatted_trade[col] = "N/A"
-                elif col == 'dateTraded':
-                    # Format date/time
-                    try:
-                        if pd.notna(formatted_trade[col]):
-                            formatted_trade[col] = formatted_trade[col].strftime('%Y-%m-%d %H:%M:%S')
-                        else:
-                            formatted_trade[col] = "N/A"
-                    except (AttributeError, TypeError):
-                        formatted_trade[col] = "N/A"
-                elif isinstance(formatted_trade[col], (int, float)):
-                    # Handle other numeric fields
-                    try:
-                        if pd.notna(formatted_trade[col]):
-                            formatted_trade[col] = f"{formatted_trade[col]:,.0f}"
-                        else:
-                            formatted_trade[col] = "N/A"
-                    except (ValueError, TypeError):
-                        formatted_trade[col] = "N/A"
-                else:
-                    # Handle string/object fields
-                    if pd.notna(formatted_trade[col]):
-                        formatted_trade[col] = str(formatted_trade[col])
+        formatted_trade = selected_trade_data.copy()
+        
+        # Format numeric columns based on requirements - handle mixed data types
+        for col in formatted_trade.index:
+            if col in ['idealProfit', 'buyVolume', 'sellVolume', 'buyTotal', 'sellTotal']:
+                # Convert to numeric first, then format
+                try:
+                    numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
+                    if pd.notna(numeric_val):
+                        formatted_trade[col] = f"{numeric_val:,.0f}"
                     else:
                         formatted_trade[col] = "N/A"
-            
-            st.dataframe(formatted_trade, width='stretch')
+                except (ValueError, TypeError):
+                    formatted_trade[col] = "N/A"
+            elif col in ['buyVwap', 'sellVwap']:
+                # Convert to numeric first, then format with 4 decimals
+                try:
+                    numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
+                    if pd.notna(numeric_val):
+                        formatted_trade[col] = f"{numeric_val:,.4f}"
+                    else:
+                        formatted_trade[col] = "N/A"
+                except (ValueError, TypeError):
+                    formatted_trade[col] = "N/A"
+            elif col == 'dateTraded':
+                # Format date/time
+                try:
+                    if pd.notna(formatted_trade[col]):
+                        formatted_trade[col] = formatted_trade[col].strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        formatted_trade[col] = "N/A"
+                except (AttributeError, TypeError):
+                    formatted_trade[col] = "N/A"
+            elif isinstance(formatted_trade[col], (int, float)):
+                # Handle other numeric fields
+                try:
+                    if pd.notna(formatted_trade[col]):
+                        formatted_trade[col] = f"{formatted_trade[col]:,.0f}"
+                    else:
+                        formatted_trade[col] = "N/A"
+                except (ValueError, TypeError):
+                    formatted_trade[col] = "N/A"
+            else:
+                # Handle string/object fields
+                if pd.notna(formatted_trade[col]):
+                    formatted_trade[col] = str(formatted_trade[col])
+                else:
+                    formatted_trade[col] = "N/A"
+        
+        st.dataframe(formatted_trade, width='stretch')
         
         # Add back button
         if st.button("← Back to Bot Dashboard"):
