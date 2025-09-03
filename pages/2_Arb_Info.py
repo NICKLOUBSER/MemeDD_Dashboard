@@ -14,6 +14,25 @@ os.environ["GEMINI_API_KEY"] = GEMINI_CONFIG["api_key"]
 # Initialize Gemini client (API key is automatically picked up from environment)
 client = genai.Client()
 
+# Custom CSS for cards that actually works in Streamlit
+st.markdown("""
+<style>
+/* Target containers directly for card styling */
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {
+    background-color: #252d3d !important;
+    border-radius: 10px !important;
+    padding: 20px !important;
+    margin: 15px 0 !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Ensure proper spacing between sections */
+div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) + div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"]) {
+    margin-top: 20px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 def show_arb_info():
     st.title("📊 Arb Info")
     
@@ -28,22 +47,12 @@ def show_arb_info():
     st.subheader("🔍 Detailed Analysis for Selected Trade")
     
     # Card 1: Trade Details and Transaction Data
+    st.markdown("### 📅 Trade Details & Transaction Data")
     with st.container():
-        st.markdown("""
-        <div style="
-            background-color: #1e1e1e;
-            border: 1px solid #404040;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        ">
-        """, unsafe_allow_html=True)
-        
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 📅 Trade Details")
+            st.markdown("#### 📅 Trade Details")
             colsub1, colsub2 = st.columns(2)
 
             with colsub1:
@@ -113,7 +122,7 @@ def show_arb_info():
         
         with col2:
             # Transaction data
-            st.markdown("### 💰 Transaction Data")
+            st.markdown("#### 💰 Transaction Data")
             # Handle buy total calculation
             try:
                 buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
@@ -139,24 +148,10 @@ def show_arb_info():
             except (ValueError, TypeError):
                 sell_total_display = "N/A"
             st.metric("Sell Total", sell_total_display)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
     
     # Card 2: Coin/Token Information
+    st.markdown("### 🪙 Coin/Token Information")
     with st.container():
-        st.markdown("""
-        <div style="
-            background-color: #1e1e1e;
-            border: 1px solid #404040;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        ">
-        """, unsafe_allow_html=True)
-        
-        st.subheader("🪙 Coin/Token Information")
-        
         # Look for token/coin related columns
         token_cols = [col for col in selected_trade_data.index if any(keyword in col.lower() for keyword in ['token', 'coin', 'symbol', 'pair', 'market'])]
         
@@ -164,7 +159,7 @@ def show_arb_info():
         
         with col1:
              # Exchange information
-            st.markdown("### 🏪 Exchange Information")
+            st.markdown("#### 🏪 Exchange Information")
         
             st.write(f"**Buy Exchange:** {selected_trade_data['buyExchange']}")
 
@@ -173,7 +168,7 @@ def show_arb_info():
             st.write(f"**Exchange Route:** {selected_trade_data['buyExchange']} → {selected_trade_data['sellExchange']}")
         
         with col2:
-            st.markdown("### 📊 Market Data")
+            st.markdown("#### 📊 Market Data")
             # Look for market-related columns
             market_cols = [col for col in selected_trade_data.index if any(keyword in col.lower() for keyword in ['price', 'market', 'cap', 'volume', 'liquidity'])]
             
@@ -193,7 +188,7 @@ def show_arb_info():
                 st.write("**Market data not available**")
         
         with col3:
-            st.markdown("### 🔗 Additional Info")
+            st.markdown("#### 🔗 Additional Info")
             # Show other relevant columns that haven't been displayed yet
             displayed_cols = ['dateTraded', 'id', 'idealProfit', 'buyVolume', 'buyVwap', 'sellVolume', 'sellVwap'] + ['buyExchange', 'sellExchange'] + token_cols + market_cols
             other_cols = [col for col in selected_trade_data.index if col not in displayed_cols and pd.notna(selected_trade_data[col])]
@@ -212,8 +207,6 @@ def show_arb_info():
                             st.write(f"**{col.replace('_', ' ').title()}:** {selected_trade_data[col]}")
             else:
                 st.write("**No additional data available**")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
     
     # Extract coin information for LLM chat
     coin_info = {}
@@ -227,20 +220,8 @@ def show_arb_info():
     
     with main_col:
         # Card 3: Profit Calculation Breakdown
+        st.markdown("### 💰 Profit Calculation Breakdown")
         with st.container():
-            st.markdown("""
-            <div style="
-                background-color: #1e1e1e;
-                border: 1px solid #404040;
-                border-radius: 10px;
-                padding: 20px;
-                margin: 10px 0;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            ">
-            """, unsafe_allow_html=True)
-            
-            st.subheader("💰 Profit Calculation Breakdown")
-            
             if all(col in selected_trade_data for col in ['buyVolume', 'buyVwap', 'sellVolume', 'sellVwap']):
                 # Handle buy total calculation
                 try:
@@ -283,23 +264,10 @@ def show_arb_info():
                     st.metric("Sell Total", sell_total_display)
                 with col3:
                     st.metric("Profit", profit_display)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
         
         # Card 4: Complete Trade Data
+        st.markdown("### 📋 Complete Trade Data")
         with st.container():
-            st.markdown("""
-            <div style="
-                background-color: #1e1e1e;
-                border: 1px solid #404040;
-                border-radius: 10px;
-                padding: 20px;
-                margin: 10px 0;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            ">
-            """, unsafe_allow_html=True)
-            
-            st.subheader("📋 Complete Trade Data")
             formatted_trade = selected_trade_data.copy()
             
             # Format numeric columns based on requirements - handle mixed data types
@@ -350,8 +318,6 @@ def show_arb_info():
                         formatted_trade[col] = "N/A"
             
             st.dataframe(formatted_trade, width='stretch')
-            
-            st.markdown("</div>", unsafe_allow_html=True)
         
         # Add back button
         if st.button("← Back to Bot Dashboard"):
@@ -361,20 +327,8 @@ def show_arb_info():
     # Chat column on the right
     with chat_col:
         # Card 5: AI Assistant
+        st.markdown("### 🤖 AI Assistant")
         with st.container():
-            st.markdown("""
-            <div style="
-                background-color: #1e1e1e;
-                border: 1px solid #404040;
-                border-radius: 10px;
-                padding: 20px;
-                margin: 10px 0;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            ">
-            """, unsafe_allow_html=True)
-            
-            st.markdown("### 🤖 AI Assistant")
-            
             # Initialize chat history with unique key for this trade
             chat_key = f"messages_{selected_trade_data.get('id', 'unknown')}"
             if chat_key not in st.session_state:
@@ -420,8 +374,6 @@ def show_arb_info():
             if st.button("🗑️ Clear Chat", key=f"clear_chat_{selected_trade_data.get('id', 'unknown')}"):
                 st.session_state[chat_key] = []
                 st.rerun()
-            
-            st.markdown("</div>", unsafe_allow_html=True)
 
 # Run the arb info page
 show_arb_info()
