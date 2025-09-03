@@ -200,7 +200,7 @@ def show_arb_info():
                             # Try to convert to numeric for formatting
                             numeric_val = pd.to_numeric(selected_trade_data[col], errors='coerce')
                             if pd.notna(numeric_val):
-                                st.write(f"**{col.replace('_', ' ').title()}:** {numeric_val:,.2f}")
+                                st.write(f"**{col.replace('_', ' ').title()}:** {numeric_val}")
                             else:
                                 st.write(f"**{col.replace('_', ' ').title()}:** {selected_trade_data[col]}")
                         except (ValueError, TypeError):
@@ -229,7 +229,7 @@ def show_arb_info():
                     buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
                     if pd.notna(buy_vol) and pd.notna(buy_vwap):
                         buy_total = buy_vol * buy_vwap
-                        buy_total_display = f"${buy_total:,.0f}"
+                        buy_total_display = f"${buy_total}"
                     else:
                         buy_total_display = "N/A"
                 except (ValueError, TypeError):

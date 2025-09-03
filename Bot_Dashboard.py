@@ -165,29 +165,43 @@ else:
         # Apply filter for charts (hourly aggregation)
         filtered_data_for_charts = apply_month_filter(data, selected_month)
         
-        # Display charts in two columns
+        # Display chart
         st.subheader("📊 Trading Analytics")
         
-        # Create two columns for charts
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Profit over time chart (Scatter)
-            if not filtered_data_for_charts.empty:
-                # Group by hour for better visualization
-                hourly_data = filtered_data_for_charts.groupby(
-                    filtered_data_for_charts['dateTraded'].dt.floor('h')
-                ).agg({
-                    'idealProfit': 'sum',
-                    'buyVolume': 'sum',
-                    'sellVolume': 'sum'
-                }).reset_index()
-                
+        # Profit over time chart (Scatter)
+        if not filtered_data_for_charts.empty:
+            # Group by hour for better visualization
+            hourly_data = filtered_data_for_charts.groupby(
+                filtered_data_for_charts['dateTraded'].dt.floor('h')
+            ).agg({
+                'idealProfit': 'sum',
+                'buyVolume': 'sum',
+                'sellVolume': 'sum'
+            }).reset_index()
+            
+            # Remove outliers to spread data better
+            # Calculate Q1, Q3 and IQR for outlier detection
+            Q1 = hourly_data['idealProfit'].quantile(0.25)
+            Q3 = hourly_data['idealProfit'].quantile(0.75)
+            IQR = Q3 - Q1
+            
+            # Define outlier bounds (more conservative)
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            
+            # Filter out extreme outliers for better visualization
+            filtered_hourly_data = hourly_data[
+                (hourly_data['idealProfit'] >= lower_bound) & 
+                (hourly_data['idealProfit'] <= upper_bound)
+            ].copy()
+            
+            # If we have data after filtering
+            if not filtered_hourly_data.empty:
                 fig_profit = px.scatter(
-                    hourly_data, 
+                    filtered_hourly_data, 
                     x='dateTraded', 
                     y='idealProfit',
-                    title='Hourly Profit Over Time',
+                    title='Hourly Profit Over Time (Outliers Removed)',
                     labels={'idealProfit': 'Profit (%)', 'dateTraded': 'Time'},
                     size='idealProfit',  # Size points based on profit
                     color='idealProfit',  # Color points based on profit
@@ -199,47 +213,29 @@ else:
                     height=400
                 )
                 st.plotly_chart(fig_profit, use_container_width=True)
-        
-        with col2:
-            # Top 5 Most Profitable Buy → Sell Exchange Routes
-            if not filtered_data_for_charts.empty:
-                # Calculate exchange routes and their total profits
-                route_data = filtered_data_for_charts.groupby(['buyExchange', 'sellExchange']).agg({
-                    'idealProfit': 'sum',
-                    'id': 'count'  # Count of trades for this route
-                }).reset_index()
                 
-                # Create route label
-                route_data['route'] = route_data['buyExchange'] + ' → ' + route_data['sellExchange']
-                
-                # Sort by profit and get top 5
-                top_routes = route_data.nlargest(5, 'idealProfit')
-                
-                fig_routes = px.bar(
-                    top_routes,
-                    x='route',
+                # Show outlier information
+                outlier_count = len(hourly_data) - len(filtered_hourly_data)
+                if outlier_count > 0:
+                    st.info(f"📊 {outlier_count} outlier data points removed for better visualization. Showing {len(filtered_hourly_data)} of {len(hourly_data)} total points.")
+            else:
+                st.warning("No data points remain after outlier removal. Showing original data.")
+                fig_profit = px.scatter(
+                    hourly_data, 
+                    x='dateTraded', 
                     y='idealProfit',
-                    title='Top 5 Most Profitable Buy → Sell Exchange Routes',
-                    labels={'idealProfit': 'Total Profit (%)', 'route': 'Exchange Route'},
+                    title='Hourly Profit Over Time',
+                    labels={'idealProfit': 'Profit (%)', 'dateTraded': 'Time'},
+                    size='idealProfit',
                     color='idealProfit',
                     color_continuous_scale='RdYlGn'
                 )
-                
-                fig_routes.update_layout(
-                    xaxis_title="Exchange Route",
-                    yaxis_title="Total Profit (%)",
-                    height=400,
-                    xaxis={'tickangle': -45}  # Rotate labels for better readability
+                fig_profit.update_layout(
+                    xaxis_title="Time",
+                    yaxis_title="Profit (%)",
+                    height=400
                 )
-                
-                # Add trade count as text on bars
-                fig_routes.update_traces(
-                    texttemplate='%{y:,.0f}<br>(%{customdata[0]} trades)',
-                    textposition='outside',
-                    customdata=top_routes[['id']].values
-                )
-                
-                st.plotly_chart(fig_routes, use_container_width=True)
+                st.plotly_chart(fig_profit, use_container_width=True)
         
         # Summary statistics
         st.subheader("📈 Summary Statistics")
@@ -261,104 +257,51 @@ else:
         # Trade selection dropdown
         st.subheader("🔍 Select Trade for Detailed Analysis")
         
-        # Add search functionality next to dropdown
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Create formatted display data for dropdown
-            display_data = []
-            for i, (idx, row) in enumerate(filtered_data_for_display.iterrows()):
-                # Handle potential mixed data types in idealProfit
-                profit_value = row['idealProfit']
-                if pd.notna(profit_value) and profit_value is not None:
-                    try:
-                        profit_display = f"{float(profit_value):.2f}%"
-                    except (ValueError, TypeError):
-                        profit_display = "N/A"
-                else:
+        # Create formatted display data for searchable dropdown
+        display_data = []
+        for i, (idx, row) in enumerate(filtered_data_for_display.iterrows()):
+            # Handle potential mixed data types in idealProfit
+            profit_value = row['idealProfit']
+            if pd.notna(profit_value) and profit_value is not None:
+                try:
+                    profit_display = f"{float(profit_value):.2f}%"
+                except (ValueError, TypeError):
                     profit_display = "N/A"
-                
-                display_data.append({
-                    'position': i,  # Use position instead of original index
-                    'display': f"Trade #{row['id']} - {row['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display} - {row.get('sellBase', 'Unknown')}"
-                })
+            else:
+                profit_display = "N/A"
             
-            # Create dropdown options
-            dropdown_options = [item['display'] for item in display_data]
-            
-            if dropdown_options:
-                selected_trade_display = st.selectbox(
-                    "Choose a trade to analyze:",
-                    dropdown_options,
-                    index=0
-                )
-                
-                # Find the selected trade data
-                selected_index = dropdown_options.index(selected_trade_display)
-                selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['position']]
-                
-                # Store selected trade in session state for navigation
-                st.session_state.selected_trade_data = selected_trade_data
-                st.session_state.selected_trade_id = selected_trade_data['id']
-                
-                # Show quick preview
-                st.success(f"Selected: {selected_trade_display}")
-                
-                # Navigation button
-                if st.button("📊 View Detailed Analysis"):
-                    # Navigate to Arb Info page
-                    st.switch_page("pages/2_Arb_Info.py")
+            display_data.append({
+                'position': i,  # Use position instead of original index
+                'display': f"Trade #{row['id']} - {row['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display} - {row.get('sellBase', 'Unknown')}"
+            })
         
-        with col2:
-            # Search input and button in a single row
-            search_col1, search_col2 = st.columns([2, 1])
+        # Create dropdown options
+        dropdown_options = [item['display'] for item in display_data]
+        
+        if dropdown_options:
+            # Use selectbox with search functionality
+            selected_trade_display = st.selectbox(
+                "Search and choose a trade to analyze:",
+                dropdown_options,
+                index=0,
+                help="Type to search through trades by ID, date, profit, or token name"
+            )
             
-            with search_col1:
-                search_trade_id = st.text_input("Enter Trade ID:", placeholder="e.g., 3562", key="search_input")
+            # Find the selected trade data
+            selected_index = dropdown_options.index(selected_trade_display)
+            selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['position']]
             
-            with search_col2:
-                st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with input
-                search_clicked = st.button("🔍 Search", type="primary", key="search_button")
+            # Store selected trade in session state for navigation
+            st.session_state.selected_trade_data = selected_trade_data
+            st.session_state.selected_trade_id = selected_trade_data['id']
             
-            # Search logic and notifications
-            if search_clicked:
-                if search_trade_id and search_trade_id.strip():
-                    try:
-                        # Create database connection
-                        engine = create_engine(
-                            f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
-                            f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-                        )
-
-                        # Query for the specific trade
-                        query = f"SELECT * FROM arbtransaction WHERE id = {search_trade_id.strip()}"
-                        search_result = pd.read_sql(query, engine)
-
-                        if not search_result.empty:
-                            # Store the found trade in session state
-                            st.session_state.selected_trade_data = search_result.iloc[0]
-                            st.session_state.selected_trade_id = search_result.iloc[0]['id']
-
-                            # Show notifications side by side
-                            notif_col1, notif_col2 = st.columns(2)
-                            with notif_col1:
-                                st.success(f"✅ Trade ID {search_trade_id} found!")
-                            
-                            with notif_col2:
-                                # Show trade preview
-                                trade_data = search_result.iloc[0]
-                                profit_display = f"{float(trade_data['idealProfit']):.2f}%" if pd.notna(trade_data['idealProfit']) else "N/A"
-                                st.info(f"**Found:** ID {trade_data['id']} - {trade_data['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display}")
-                            
-                            # Navigation button below notifications
-                            if st.button("📊 View Analysis", key="search_nav"):
-                                st.switch_page("pages/2_Arb_Info.py")
-                        else:
-                            st.error(f"❌ Trade ID {search_trade_id} not found.")
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-                else:
-                    st.warning("⚠️ Please enter a Trade ID.")
+            # Show quick preview
+            st.success(f"Selected: {selected_trade_display}")
+            
+            # Navigation button
+            if st.button("📊 View Detailed Analysis"):
+                # Navigate to Arb Info page
+                st.switch_page("pages/2_Arb_Info.py")
         
         # Transaction table (no pagination)
         st.subheader("📋 Transaction Table")
