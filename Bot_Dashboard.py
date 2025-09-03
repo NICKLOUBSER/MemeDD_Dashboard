@@ -319,43 +319,47 @@ else:
             
             with search_col2:
                 st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with input
-                if st.button("🔍 Search", type="primary", key="search_button"):
-                    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with input
+                search_clicked = st.button("🔍 Search", type="primary", key="search_button")
+            
+            # Search logic and notifications
+            if search_clicked:
+                if search_trade_id and search_trade_id.strip():
+                    try:
+                        # Create database connection
+                        engine = create_engine(
+                            f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
+                            f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+                        )
 
-            if search_trade_id and search_trade_id.strip():
-                try:
-                    # Create database connection
-                    engine = create_engine(
-                        f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
-                        f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-                    )
+                        # Query for the specific trade
+                        query = f"SELECT * FROM arbtransaction WHERE id = {search_trade_id.strip()}"
+                        search_result = pd.read_sql(query, engine)
 
-                    # Query for the specific trade
-                    query = f"SELECT * FROM arbtransaction WHERE id = {search_trade_id.strip()}"
-                    search_result = pd.read_sql(query, engine)
+                        if not search_result.empty:
+                            # Store the found trade in session state
+                            st.session_state.selected_trade_data = search_result.iloc[0]
+                            st.session_state.selected_trade_id = search_result.iloc[0]['id']
 
-                    if not search_result.empty:
-                        # Store the found trade in session state
-                        st.session_state.selected_trade_data = search_result.iloc[0]
-                        st.session_state.selected_trade_id = search_result.iloc[0]['id']
-
-                        # Show notifications below the search area
-                        st.success(f"✅ Trade ID {search_trade_id} found!")
-
-                        # Show trade preview
-                        trade_data = search_result.iloc[0]
-                        profit_display = f"${float(trade_data['idealProfit']):,.0f}" if pd.notna(trade_data['idealProfit']) else "N/A"
-                        st.info(f"**Found:** ID {trade_data['id']} - {trade_data['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display}")
-
-                        # Navigation button
-                        if st.button("📊 View Analysis", key="search_nav"):
-                            st.switch_page("pages/2_Arb_Info.py")
-                    else:
-                        st.error(f"❌ Trade ID {search_trade_id} not found.")
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-            else:
-                st.warning("⚠️ Please enter a Trade ID.")
+                            # Show notifications side by side
+                            notif_col1, notif_col2 = st.columns(2)
+                            with notif_col1:
+                                st.success(f"✅ Trade ID {search_trade_id} found!")
+                            
+                            with notif_col2:
+                                # Show trade preview
+                                trade_data = search_result.iloc[0]
+                                profit_display = f"${float(trade_data['idealProfit']):,.0f}" if pd.notna(trade_data['idealProfit']) else "N/A"
+                                st.info(f"**Found:** ID {trade_data['id']} - {trade_data['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display}")
+                            
+                            # Navigation button below notifications
+                            if st.button("📊 View Analysis", key="search_nav"):
+                                st.switch_page("pages/2_Arb_Info.py")
+                        else:
+                            st.error(f"❌ Trade ID {search_trade_id} not found.")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+                else:
+                    st.warning("⚠️ Please enter a Trade ID.")
         
         # Transaction table (no pagination)
         st.subheader("📋 Transaction Table")
