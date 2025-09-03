@@ -291,8 +291,7 @@ else:
             selected_index = dropdown_options.index(selected_trade_display)
             selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['position']]
             
-            # Store selected trade in session state for navigation
-            st.session_state.selected_trade_data = selected_trade_data
+            # Store only the trade ID in session state for navigation
             st.session_state.selected_trade_id = selected_trade_data['id']
             
             # Show quick preview
@@ -308,4 +307,14 @@ else:
         
         # Display data without original_idealProfit column
         display_columns = [col for col in filtered_data_for_display.columns if col != 'original_idealProfit']
-        st.dataframe(filtered_data_for_display[display_columns], width='stretch')
+        
+        # Create a copy of the data for display formatting
+        display_data = filtered_data_for_display[display_columns].copy()
+        
+        # Format idealProfit column to show percentages with 2 decimal places
+        if 'idealProfit' in display_data.columns:
+            display_data['idealProfit'] = display_data['idealProfit'].apply(
+                lambda x: f"{float(x):.2f}%" if pd.notna(x) and x is not None else "N/A"
+            )
+        
+        st.dataframe(display_data, width='stretch')

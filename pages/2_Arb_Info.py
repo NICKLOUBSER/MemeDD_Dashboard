@@ -33,15 +33,80 @@ div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stVerticalBlock"
 </style>
 """, unsafe_allow_html=True)
 
+@st.cache_data
+def load_specific_trade_data(trade_id):
+    """
+    Load specific trade data from PostgreSQL database by trade ID.
+    """
+    try:
+        # Create database connection
+        engine = create_engine(
+            f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
+            f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+        )
+        
+        # Load specific trade data using parameterized query to prevent SQL injection
+        query = "SELECT * FROM arbtransaction WHERE id = %s"
+        
+        # Convert numpy.int64 to regular Python int for PostgreSQL compatibility
+        trade_id_int = int(trade_id)
+        
+        data = pd.read_sql(query, engine, params=(trade_id_int,))
+        
+        if data.empty:
+            return None
+        
+        # Get the single row
+        trade_data = data.iloc[0]
+        
+        # Store original idealProfit from database
+        original_idealProfit = trade_data.get('idealProfit', 0)
+        
+        # Calculate idealProfit using the formula: (sellVolume*sellVwap) - (buyVolume*buyVwap)
+        if all(col in trade_data.index for col in ['sellVolume', 'sellVwap', 'buyVolume', 'buyVwap']):
+            # Convert columns to numeric before calculation
+            sell_vol = pd.to_numeric(trade_data['sellVolume'], errors='coerce')
+            sell_vwap = pd.to_numeric(trade_data['sellVwap'], errors='coerce')
+            buy_vol = pd.to_numeric(trade_data['buyVolume'], errors='coerce')
+            buy_vwap = pd.to_numeric(trade_data['buyVwap'], errors='coerce')
+            
+            # Calculate raw profit
+            raw_profit = (sell_vol * sell_vwap) - (buy_vol * buy_vwap)
+            
+            # Calculate total investment (buyVolume * buyVwap)
+            total_investment = buy_vol * buy_vwap
+            
+            # Calculate profit as raw value (not percentage)
+            trade_data['idealProfit'] = raw_profit if total_investment != 0 else 0
+            trade_data['original_idealProfit'] = pd.to_numeric(original_idealProfit, errors='coerce')
+        else:
+            trade_data['idealProfit'] = 0
+            trade_data['original_idealProfit'] = original_idealProfit
+        
+        # Convert dateTraded to datetime
+        if 'dateTraded' in trade_data.index:
+            trade_data['dateTraded'] = pd.to_datetime(trade_data['dateTraded'])
+        
+        return trade_data
+        
+    except Exception as e:
+        st.error(f"Error loading trade data: {str(e)}")
+        return None
+
 def show_arb_info():
     st.title("📊 Arb Info")
     
-    # Check if we have a selected trade
-    if 'selected_trade_data' not in st.session_state:
+    # Check if we have a selected trade ID
+    if 'selected_trade_id' not in st.session_state:
         st.info("Please select a trade from the Bot Dashboard to view detailed analysis.")
         return
     
-    selected_trade_data = st.session_state.selected_trade_data
+    # Load the specific trade data from database
+    selected_trade_data = load_specific_trade_data(st.session_state.selected_trade_id)
+    
+    if selected_trade_data is None:
+        st.error("Trade not found or error loading trade data.")
+        return
     
     # Display trade details
     st.subheader("🔍 Detailed Analysis for Selected Trade")
@@ -81,7 +146,7 @@ def show_arb_info():
                 try:
                     buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
                     if pd.notna(buy_vol):
-                        buy_vol_display = f"{buy_vol}"
+                        buy_vol_display = f"{buy_vol:,.2f}"
                     else:
                         buy_vol_display = "N/A"
                 except (ValueError, TypeError):
@@ -91,7 +156,12 @@ def show_arb_info():
                 try:
                     buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
                     if pd.notna(buy_vwap):
-                        buy_vwap_display = f"${buy_vwap}"
+                        if buy_vwap < 0.00000001:  # Very small numbers
+                            buy_vwap_display = f"${buy_vwap:.18f}"
+                        elif buy_vwap < 0.01:
+                            buy_vwap_display = f"${buy_vwap:.8f}"
+                        else:
+                            buy_vwap_display = f"${buy_vwap:.4f}"
                     else:
                         buy_vwap_display = "N/A"
                 except (ValueError, TypeError):
@@ -102,7 +172,7 @@ def show_arb_info():
                 try:
                     sell_vol = pd.to_numeric(selected_trade_data['sellVolume'], errors='coerce')
                     if pd.notna(sell_vol):
-                        sell_vol_display = f"{sell_vol}"
+                        sell_vol_display = f"{sell_vol:,.2f}"
                     else:
                         sell_vol_display = "N/A"
                 except (ValueError, TypeError):
@@ -113,7 +183,12 @@ def show_arb_info():
                 try:
                     sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
                     if pd.notna(sell_vwap):
-                        sell_vwap_display = f"${sell_vwap}"
+                        if sell_vwap < 0.00000001:  # Very small numbers
+                            sell_vwap_display = f"${sell_vwap:.18f}"
+                        elif sell_vwap < 0.01:
+                            sell_vwap_display = f"${sell_vwap:.8f}"
+                        else:
+                            sell_vwap_display = f"${sell_vwap:.4f}"
                     else:
                         sell_vwap_display = "N/A"
                 except (ValueError, TypeError):
@@ -129,7 +204,12 @@ def show_arb_info():
                 buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
                 if pd.notna(buy_vol) and pd.notna(buy_vwap):
                     buy_total = buy_vol * buy_vwap
-                    buy_total_display = f"${buy_total:,.2f}"
+                    if buy_total < 0.00000001:  # Very small numbers
+                        buy_total_display = f"${buy_total:.18f}"
+                    elif buy_total < 0.01:
+                        buy_total_display = f"${buy_total:.8f}"
+                    else:
+                        buy_total_display = f"${buy_total:.2f}"
                 else:
                     buy_total_display = "N/A"
             except (ValueError, TypeError):
@@ -142,7 +222,12 @@ def show_arb_info():
                 sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
                 if pd.notna(sell_vol) and pd.notna(sell_vwap):
                     sell_total = sell_vol * sell_vwap
-                    sell_total_display = f"${sell_total:,.2f}"
+                    if sell_total < 0.00000001:  # Very small numbers
+                        sell_total_display = f"${sell_total:.18f}"
+                    elif sell_total < 0.01:
+                        sell_total_display = f"${sell_total:.8f}"
+                    else:
+                        sell_total_display = f"${sell_total:.2f}"
                 else:
                     sell_total_display = "N/A"
             except (ValueError, TypeError):
@@ -229,7 +314,12 @@ def show_arb_info():
                     buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
                     if pd.notna(buy_vol) and pd.notna(buy_vwap):
                         buy_total = buy_vol * buy_vwap
-                        buy_total_display = f"${buy_total}"
+                        if buy_total < 0.00000001:  # Very small numbers
+                            buy_total_display = f"${buy_total:.18f}"
+                        elif buy_total < 0.01:
+                            buy_total_display = f"${buy_total:.8f}"
+                        else:
+                            buy_total_display = f"${buy_total:.2f}"
                     else:
                         buy_total_display = "N/A"
                 except (ValueError, TypeError):
@@ -241,7 +331,12 @@ def show_arb_info():
                     sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
                     if pd.notna(sell_vol) and pd.notna(sell_vwap):
                         sell_total = sell_vol * sell_vwap
-                        sell_total_display = f"${sell_total:,.0f}"
+                        if sell_total < 0.00000001:  # Very small numbers
+                            sell_total_display = f"${sell_total:.18f}"
+                        elif sell_total < 0.01:
+                            sell_total_display = f"${sell_total:.8f}"
+                        else:
+                            sell_total_display = f"${sell_total:.2f}"
                     else:
                         sell_total_display = "N/A"
                 except (ValueError, TypeError):
@@ -251,7 +346,12 @@ def show_arb_info():
                 try:
                     profit_val = pd.to_numeric(selected_trade_data['idealProfit'], errors='coerce')
                     if pd.notna(profit_val):
-                        profit_display = f"${profit_val:,.0f}"
+                        if profit_val < 0.00000001:  # Very small numbers
+                            profit_display = f"${profit_val:.18f}"
+                        elif profit_val < 0.01:
+                            profit_display = f"${profit_val:.8f}"
+                        else:
+                            profit_display = f"${profit_val:.2f}"
                     else:
                         profit_display = "N/A"
                 except (ValueError, TypeError):
@@ -276,17 +376,27 @@ def show_arb_info():
                 try:
                     numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
                     if pd.notna(numeric_val):
-                        formatted_trade[col] = f"{numeric_val:,.0f}"
+                        if numeric_val < 0.00000001:  # Very small numbers
+                            formatted_trade[col] = f"{numeric_val:.18f}"
+                        elif numeric_val < 0.01:
+                            formatted_trade[col] = f"{numeric_val:.8f}"
+                        else:
+                            formatted_trade[col] = f"{numeric_val:,.2f}"
                     else:
                         formatted_trade[col] = "N/A"
                 except (ValueError, TypeError):
                     formatted_trade[col] = "N/A"
             elif col in ['buyVwap', 'sellVwap']:
-                # Convert to numeric first, then format with 4 decimals
+                # Convert to numeric first, then format with appropriate decimals
                 try:
                     numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
                     if pd.notna(numeric_val):
-                        formatted_trade[col] = f"{numeric_val:,.4f}"
+                        if numeric_val < 0.00000001:  # Very small numbers
+                            formatted_trade[col] = f"{numeric_val:.18f}"
+                        elif numeric_val < 0.01:
+                            formatted_trade[col] = f"{numeric_val:.8f}"
+                        else:
+                            formatted_trade[col] = f"{numeric_val:.4f}"
                     else:
                         formatted_trade[col] = "N/A"
                 except (ValueError, TypeError):
@@ -316,7 +426,9 @@ def show_arb_info():
                 else:
                     formatted_trade[col] = "N/A"
         
-        st.dataframe(formatted_trade, width='stretch')
+        # Convert Series to DataFrame for display
+        formatted_df = pd.DataFrame([formatted_trade])
+        st.dataframe(formatted_df, width='stretch')
         
         # Add back button
         if st.button("← Back to Bot Dashboard"):
@@ -350,7 +462,7 @@ def show_arb_info():
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
                     # Give AI all the raw data
-                    context = f"""COMPLETE TRADE DATA (RAW): {selected_trade_data.to_string()} TRADE SUMMARY: ( Date/Time: {selected_trade_data['dateTraded']} Trade ID: {selected_trade_data['id']} Buy Exchange: {selected_trade_data['buyExchange']} Sell Exchange: {selected_trade_data['sellExchange']} Buy Volume: {selected_trade_data['buyVolume']} Buy VWAP: {selected_trade_data['buyVwap']} Sell Volume: {selected_trade_data['sellVolume']} Sell VWAP: {selected_trade_data['sellVwap']} Profit: {selected_trade_data['idealProfit']})"""
+                    context = f"""COMPLETE TRADE DATA (RAW): {selected_trade_data.to_dict()} TRADE SUMMARY: ( Date/Time: {selected_trade_data['dateTraded']} Trade ID: {selected_trade_data['id']} Buy Exchange: {selected_trade_data['buyExchange']} Sell Exchange: {selected_trade_data['sellExchange']} Buy Volume: {selected_trade_data['buyVolume']} Buy VWAP: {selected_trade_data['buyVwap']} Sell Volume: {selected_trade_data['sellVolume']} Sell VWAP: {selected_trade_data['sellVwap']} Profit: {selected_trade_data['idealProfit']})"""
                     
                     # Create prompt for Gemini
                     full_prompt = f"""You are a cryptocurrency trading analyst. Analyze this trade data and answer the user's question. {context} USER QUESTION: {prompt} Provide a direct, helpful answer based on the data."""

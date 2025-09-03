@@ -100,13 +100,45 @@ def show_calculations():
     st.subheader("📈 Summary Statistics")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Calculated Avg Profit", f"${data['idealProfit'].mean():,.0f}")
+        avg_calc = data['idealProfit'].mean()
+        if abs(avg_calc) >= 1e9:
+            st.metric("Calculated Avg Profit", f"${avg_calc/1e9:.2f}B")
+        elif abs(avg_calc) >= 1e6:
+            st.metric("Calculated Avg Profit", f"${avg_calc/1e6:.2f}M")
+        elif abs(avg_calc) >= 1e3:
+            st.metric("Calculated Avg Profit", f"${avg_calc/1e3:.2f}K")
+        else:
+            st.metric("Calculated Avg Profit", f"${avg_calc:,.2f}")
     with col2:
-        st.metric("Database Avg Profit", f"${data['original_idealProfit'].mean():,.0f}")
+        avg_db = data['original_idealProfit'].mean()
+        if abs(avg_db) >= 1e9:
+            st.metric("Database Avg Profit", f"${avg_db/1e9:.2f}B")
+        elif abs(avg_db) >= 1e6:
+            st.metric("Database Avg Profit", f"${avg_db/1e6:.2f}M")
+        elif abs(avg_db) >= 1e3:
+            st.metric("Database Avg Profit", f"${avg_db/1e3:.2f}K")
+        else:
+            st.metric("Database Avg Profit", f"${avg_db:,.2f}")
     with col3:
-        st.metric("Calculated Max Profit", f"${data['idealProfit'].max():,.0f}")
+        max_calc = data['idealProfit'].max()
+        if abs(max_calc) >= 1e9:
+            st.metric("Calculated Max Profit", f"${max_calc/1e9:.2f}B")
+        elif abs(max_calc) >= 1e6:
+            st.metric("Calculated Max Profit", f"${max_calc/1e6:.2f}M")
+        elif abs(max_calc) >= 1e3:
+            st.metric("Calculated Max Profit", f"${max_calc/1e3:.2f}K")
+        else:
+            st.metric("Calculated Max Profit", f"${max_calc:,.2f}")
     with col4:
-        st.metric("Database Max Profit", f"${data['original_idealProfit'].max():,.0f}")
+        max_db = data['original_idealProfit'].max()
+        if abs(max_db) >= 1e9:
+            st.metric("Database Max Profit", f"${max_db/1e9:.2f}B")
+        elif abs(max_db) >= 1e6:
+            st.metric("Database Max Profit", f"${max_db/1e6:.2f}M")
+        elif abs(max_db) >= 1e3:
+            st.metric("Database Max Profit", f"${max_db/1e3:.2f}K")
+        else:
+            st.metric("Database Max Profit", f"${max_db:,.2f}")
     
     # Add profit margin analysis
     st.subheader("💰 Profit Margin Analysis")
@@ -126,11 +158,32 @@ def show_calculations():
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Buy Volume", f"${total_buy_volume:,.0f}")
+            if abs(total_buy_volume) >= 1e9:
+                st.metric("Total Buy Volume", f"${total_buy_volume/1e9:.2f}B")
+            elif abs(total_buy_volume) >= 1e6:
+                st.metric("Total Buy Volume", f"${total_buy_volume/1e6:.2f}M")
+            elif abs(total_buy_volume) >= 1e3:
+                st.metric("Total Buy Volume", f"${total_buy_volume/1e3:.2f}K")
+            else:
+                st.metric("Total Buy Volume", f"${total_buy_volume:,.2f}")
         with col2:
-            st.metric("Total Sell Volume", f"${total_sell_volume:,.0f}")
+            if abs(total_sell_volume) >= 1e9:
+                st.metric("Total Sell Volume", f"${total_sell_volume/1e9:.2f}B")
+            elif abs(total_sell_volume) >= 1e6:
+                st.metric("Total Sell Volume", f"${total_sell_volume/1e6:.2f}M")
+            elif abs(total_sell_volume) >= 1e3:
+                st.metric("Total Sell Volume", f"${total_sell_volume/1e3:.2f}K")
+            else:
+                st.metric("Total Sell Volume", f"${total_sell_volume:,.2f}")
         with col3:
-            st.metric("Total Profit", f"${total_profit:,.0f}")
+            if abs(total_profit) >= 1e9:
+                st.metric("Total Profit", f"${total_profit/1e9:.2f}B")
+            elif abs(total_profit) >= 1e6:
+                st.metric("Total Profit", f"${total_profit/1e6:.2f}M")
+            elif abs(total_profit) >= 1e3:
+                st.metric("Total Profit", f"${total_profit/1e3:.2f}K")
+            else:
+                st.metric("Total Profit", f"${total_profit:,.2f}")
         with col4:
             st.metric("Profit Margin", f"{profit_margin_percentage:.2f}%")
         
@@ -190,11 +243,25 @@ def show_calculations():
         
         with col2:
             total_profit_groups = grouped_results['total_profit'].sum()
-            st.metric("Total Profit (All Groups)", f"${total_profit_groups:,.0f}")
+            if abs(total_profit_groups) >= 1e9:
+                st.metric("Total Profit (All Groups)", f"${total_profit_groups/1e9:.2f}B")
+            elif abs(total_profit_groups) >= 1e6:
+                st.metric("Total Profit (All Groups)", f"${total_profit_groups/1e6:.2f}M")
+            elif abs(total_profit_groups) >= 1e3:
+                st.metric("Total Profit (All Groups)", f"${total_profit_groups/1e3:.2f}K")
+            else:
+                st.metric("Total Profit (All Groups)", f"${total_profit_groups:,.2f}")
         
         with col3:
             avg_profit_per_group = grouped_results['total_profit'].mean()
-            st.metric("Avg Profit per Group", f"${avg_profit_per_group:,.0f}")
+            if abs(avg_profit_per_group) >= 1e9:
+                st.metric("Avg Profit per Group", f"${avg_profit_per_group/1e9:.2f}B")
+            elif abs(avg_profit_per_group) >= 1e6:
+                st.metric("Avg Profit per Group", f"${avg_profit_per_group/1e6:.2f}M")
+            elif abs(avg_profit_per_group) >= 1e3:
+                st.metric("Avg Profit per Group", f"${avg_profit_per_group/1e3:.2f}K")
+            else:
+                st.metric("Avg Profit per Group", f"${avg_profit_per_group:,.2f}")
         
         with col4:
             total_transactions = grouped_results['transaction_count'].sum()
