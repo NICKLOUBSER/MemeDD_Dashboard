@@ -16,6 +16,38 @@ This is a Streamlit recreation of the original Taipy-based MemeDD Dashboard proj
 pip install -r requirements.txt
 ```
 
+2. Set up configuration:
+   - Copy `secrets.toml.example` to `.streamlit/secrets.toml`
+   - Add your database credentials and OpenAI API key
+   - Or set environment variables for sensitive data
+
+## Google AI (Gemini) Integration Setup
+
+To enable AI-powered coin analysis chat using the free Google Gemini API:
+
+1. **Get Google AI API Key**:
+   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Sign in with your Google account
+   - Create a free API key
+
+2. **Configure API Key**:
+   - Add to `.streamlit/secrets.toml`:
+     ```toml
+     [GEMINI_CONFIG]
+     api_key = "your-google-ai-api-key-here"
+     ```
+   - Or set environment variable:
+     ```bash
+     export GEMINI_API_KEY="your-api-key-here"
+     ```
+
+3. **Features Available**:
+   - AI-powered coin analysis using Gemini 1.5 Flash (free tier)
+   - Trade insights and recommendations
+   - Market condition analysis
+   - Arbitrage strategy explanations
+   - Cost-effective with generous free tier limits
+
 ## Running the Application
 
 1. Start the Streamlit app:

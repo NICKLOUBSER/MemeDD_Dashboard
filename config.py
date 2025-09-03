@@ -24,5 +24,20 @@ CHART_CONFIG = {
     "marker_opacity": 0.6,
     "marker_color": "#2E8B57",
     "line_color": "#1F5F3F",
-    "line_width": 1
+    "line_width": 1,
+    "axis_title_font_size": 14,
+    "axis_title_color": "#666666",
+    "tick_font_size": 12,
+    "margin_left": 60,
+    "margin_right": 40,
+    "margin_top": 80,
+    "margin_bottom": 60
+}
+
+# Google AI (Gemini) configuration
+GEMINI_CONFIG = {
+    "api_key": st.secrets.GEMINI_CONFIG.api_key,  # Get from secrets.toml or environment variable
+    "model": "gemini-1.5-flash",  # Free tier model
+    "max_tokens": 500,  # Optimized for free tier
+    "temperature": 0.7
 }
