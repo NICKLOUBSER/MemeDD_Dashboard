@@ -42,7 +42,14 @@ def load_arb_transaction_data():
             data['buyVolume'] = pd.to_numeric(data['buyVolume'], errors='coerce')
             data['buyVwap'] = pd.to_numeric(data['buyVwap'], errors='coerce')
             
-            data['idealProfit'] = (data['sellVolume'] * data['sellVwap']) - (data['buyVolume'] * data['buyVwap'])
+            # Calculate raw profit
+            raw_profit = (data['sellVolume'] * data['sellVwap']) - (data['buyVolume'] * data['buyVwap'])
+            
+            # Calculate total investment (buyVolume * buyVwap)
+            total_investment = data['buyVolume'] * data['buyVwap']
+            
+            # Convert to percentage (profit as percentage of investment)
+            data['idealProfit'] = (raw_profit / total_investment * 100).fillna(0)
             data['original_idealProfit'] = pd.to_numeric(original_idealProfit, errors='coerce')
         else:
             st.warning("Missing required columns for ideal profit calculation: sellVolume, sellVwap, buyVolume, buyVwap")
@@ -181,14 +188,14 @@ else:
                     x='dateTraded', 
                     y='idealProfit',
                     title='Hourly Profit Over Time',
-                    labels={'idealProfit': 'Profit ($)', 'dateTraded': 'Time'},
+                    labels={'idealProfit': 'Profit (%)', 'dateTraded': 'Time'},
                     size='idealProfit',  # Size points based on profit
                     color='idealProfit',  # Color points based on profit
                     color_continuous_scale='RdYlGn'  # Red to green color scale
                 )
                 fig_profit.update_layout(
                     xaxis_title="Time",
-                    yaxis_title="Profit ($)",
+                    yaxis_title="Profit (%)",
                     height=400
                 )
                 st.plotly_chart(fig_profit, use_container_width=True)
@@ -213,14 +220,14 @@ else:
                     x='route',
                     y='idealProfit',
                     title='Top 5 Most Profitable Buy → Sell Exchange Routes',
-                    labels={'idealProfit': 'Total Profit ($)', 'route': 'Exchange Route'},
+                    labels={'idealProfit': 'Total Profit (%)', 'route': 'Exchange Route'},
                     color='idealProfit',
                     color_continuous_scale='RdYlGn'
                 )
                 
                 fig_routes.update_layout(
                     xaxis_title="Exchange Route",
-                    yaxis_title="Total Profit ($)",
+                    yaxis_title="Total Profit (%)",
                     height=400,
                     xaxis={'tickangle': -45}  # Rotate labels for better readability
                 )
@@ -238,23 +245,15 @@ else:
         st.subheader("📈 Summary Statistics")
         
         if not filtered_data_for_display.empty:
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2 = st.columns(2)
             
             with col1:
-                # Ensure idealProfit is numeric for calculations
-                profit_series = pd.to_numeric(filtered_data_for_display['idealProfit'], errors='coerce')
-                total_profit = profit_series.sum()
-                st.metric("Total Profit", f"${total_profit:,.0f}")
-            
-            with col2:
-                avg_profit = profit_series.mean()
-                st.metric("Average Profit", f"${avg_profit:,.0f}")
-            
-            with col3:
                 total_trades = len(filtered_data_for_display)
                 st.metric("Total Trades", f"{total_trades:,}")
             
-            with col4:
+            with col2:
+                # Ensure idealProfit is numeric for calculations
+                profit_series = pd.to_numeric(filtered_data_for_display['idealProfit'], errors='coerce')
                 profitable_trades = len(profit_series[profit_series > 0])
                 win_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
                 st.metric("Win Rate", f"{win_rate:.1f}%")
@@ -268,19 +267,19 @@ else:
         with col1:
             # Create formatted display data for dropdown
             display_data = []
-            for idx, row in filtered_data_for_display.iterrows():
+            for i, (idx, row) in enumerate(filtered_data_for_display.iterrows()):
                 # Handle potential mixed data types in idealProfit
                 profit_value = row['idealProfit']
                 if pd.notna(profit_value) and profit_value is not None:
                     try:
-                        profit_display = f"${float(profit_value):,.0f}"
+                        profit_display = f"{float(profit_value):.2f}%"
                     except (ValueError, TypeError):
                         profit_display = "N/A"
                 else:
                     profit_display = "N/A"
                 
                 display_data.append({
-                    'index': idx,
+                    'position': i,  # Use position instead of original index
                     'display': f"Trade #{row['id']} - {row['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display} - {row.get('sellBase', 'Unknown')}"
                 })
             
@@ -296,7 +295,7 @@ else:
                 
                 # Find the selected trade data
                 selected_index = dropdown_options.index(selected_trade_display)
-                selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['index']]
+                selected_trade_data = filtered_data_for_display.iloc[display_data[selected_index]['position']]
                 
                 # Store selected trade in session state for navigation
                 st.session_state.selected_trade_data = selected_trade_data
@@ -348,7 +347,7 @@ else:
                             with notif_col2:
                                 # Show trade preview
                                 trade_data = search_result.iloc[0]
-                                profit_display = f"${float(trade_data['idealProfit']):,.0f}" if pd.notna(trade_data['idealProfit']) else "N/A"
+                                profit_display = f"{float(trade_data['idealProfit']):.2f}%" if pd.notna(trade_data['idealProfit']) else "N/A"
                                 st.info(f"**Found:** ID {trade_data['id']} - {trade_data['dateTraded'].strftime('%Y-%m-%d %H:%M')} - Profit: {profit_display}")
                             
                             # Navigation button below notifications
@@ -364,5 +363,6 @@ else:
         # Transaction table (no pagination)
         st.subheader("📋 Transaction Table")
         
-        # Display raw data without formatting
-        st.dataframe(filtered_data_for_display, width='stretch')
+        # Display data without original_idealProfit column
+        display_columns = [col for col in filtered_data_for_display.columns if col != 'original_idealProfit']
+        st.dataframe(filtered_data_for_display[display_columns], width='stretch')
