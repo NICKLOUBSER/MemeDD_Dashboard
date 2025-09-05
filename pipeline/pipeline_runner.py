@@ -55,7 +55,7 @@ def load_process_function(process_name: str) -> Callable:
         os.path.join(os.path.dirname(__file__), f"{module_name.replace('.', '/')}.py")
     )
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    spec.loader.exec_module(module) # type: ignore
     
     # Get the function
     return getattr(module, function_name)

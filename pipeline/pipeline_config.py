@@ -17,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('pipeline.log'),
+        logging.FileHandler('pipeline.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -31,7 +31,13 @@ class DatabaseConfig:
             "port": st.secrets.DB_CONFIG.port,
             "database": st.secrets.DB_CONFIG.database,
             "user": st.secrets.DB_CONFIG.user,
-            "password": st.secrets.DB_CONFIG.password
+            "password": st.secrets.DB_CONFIG.password,
+            # Add connection parameters for better stability
+            "connect_timeout": 60,
+            "options": "-c statement_timeout=600000",  # 10 minutes
+            "keepalives_idle": 60,
+            "keepalives_interval": 10,
+            "keepalives_count": 5
         }
         
         # For now, use the same database for both raw and processed
@@ -61,7 +67,7 @@ class DatabaseConfig:
 db_config = DatabaseConfig()
 
 # Constants
-BATCH_SIZE = 5000
+BATCH_SIZE = 1000  # Reduced from 5000 to make processing more resilient
 CONCURRENT_LIMIT = 10
 SCHEMA_NAME = 'processed'
 
