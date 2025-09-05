@@ -7,6 +7,14 @@ from sqlalchemy import create_engine
 import os
 from google import genai
 from config import DB_CONFIG, CHART_CONFIG, GEMINI_CONFIG
+from data_utils import (
+    safe_numeric_conversion, 
+    safe_decimal_conversion, 
+    format_crypto_value, 
+    format_percentage,
+    safe_calculation,
+    validate_dataframe_columns
+)
 
 # Set the environment variable for Google AI API key
 os.environ["GEMINI_API_KEY"] = GEMINI_CONFIG["api_key"]
@@ -64,21 +72,27 @@ def load_specific_trade_data(trade_id):
         
         # Calculate idealProfit using the formula: (sellVolume*sellVwap) - (buyVolume*buyVwap)
         if all(col in trade_data.index for col in ['sellVolume', 'sellVwap', 'buyVolume', 'buyVwap']):
-            # Convert columns to numeric before calculation
-            sell_vol = pd.to_numeric(trade_data['sellVolume'], errors='coerce')
-            sell_vwap = pd.to_numeric(trade_data['sellVwap'], errors='coerce')
-            buy_vol = pd.to_numeric(trade_data['buyVolume'], errors='coerce')
-            buy_vwap = pd.to_numeric(trade_data['buyVwap'], errors='coerce')
+            # Convert columns to numeric using robust data utilities
+            sell_vol = safe_numeric_conversion(trade_data['sellVolume'])
+            sell_vwap = safe_numeric_conversion(trade_data['sellVwap'])
+            buy_vol = safe_numeric_conversion(trade_data['buyVolume'])
+            buy_vwap = safe_numeric_conversion(trade_data['buyVwap'])
             
-            # Calculate raw profit
-            raw_profit = (sell_vol * sell_vwap) - (buy_vol * buy_vwap)
+            # Calculate raw profit using safe calculation
+            raw_profit = safe_calculation(
+                lambda sv, svwap, bv, bvwap: (sv * svwap) - (bv * bvwap),
+                sell_vol, sell_vwap, buy_vol, buy_vwap
+            )
             
             # Calculate total investment (buyVolume * buyVwap)
-            total_investment = buy_vol * buy_vwap
+            total_investment = safe_calculation(
+                lambda bv, bvwap: bv * bvwap,
+                buy_vol, buy_vwap
+            )
             
             # Calculate profit as raw value (not percentage)
             trade_data['idealProfit'] = raw_profit if total_investment != 0 else 0
-            trade_data['original_idealProfit'] = pd.to_numeric(original_idealProfit, errors='coerce')
+            trade_data['original_idealProfit'] = safe_numeric_conversion(original_idealProfit)
         else:
             trade_data['idealProfit'] = 0
             trade_data['original_idealProfit'] = original_idealProfit
@@ -129,109 +143,48 @@ def show_arb_info():
                 st.write(f"**Date/Time:** {date_display}")
                 st.write(f"**Trade ID:** {selected_trade_data['id']}")
 
-                # Handle profit formatting
-                try:
-                    profit_val = pd.to_numeric(selected_trade_data['idealProfit'], errors='coerce')
-                    if pd.notna(profit_val):
-                        profit_display = f"${profit_val:,.0f}"
-                    else:
-                        profit_display = "N/A"
-                except (ValueError, TypeError):
-                    profit_display = "N/A"
+                # Handle profit formatting using robust data utilities
+                profit_val = safe_numeric_conversion(selected_trade_data['idealProfit'])
+                profit_display = format_crypto_value(profit_val)
                 st.write(f"**Profit:** {profit_display}")
 
             with colsub2:
 
-                # Handle buy volume formatting
-                try:
-                    buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
-                    if pd.notna(buy_vol):
-                        buy_vol_display = f"{buy_vol:,.2f}"
-                    else:
-                        buy_vol_display = "N/A"
-                except (ValueError, TypeError):
-                    buy_vol_display = "N/A"
+                # Handle buy volume formatting using robust data utilities
+                buy_vol = safe_numeric_conversion(selected_trade_data['buyVolume'])
+                buy_vol_display = f"{buy_vol:,.2f}"
                 st.write(f"**Buy Volume:** {buy_vol_display}")
-                # Handle buy VWAP formatting
-                try:
-                    buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
-                    if pd.notna(buy_vwap):
-                        if buy_vwap < 0.00000001:  # Very small numbers
-                            buy_vwap_display = f"${buy_vwap:.18f}"
-                        elif buy_vwap < 0.01:
-                            buy_vwap_display = f"${buy_vwap:.8f}"
-                        else:
-                            buy_vwap_display = f"${buy_vwap:.4f}"
-                    else:
-                        buy_vwap_display = "N/A"
-                except (ValueError, TypeError):
-                    buy_vwap_display = "N/A"
+                
+                # Handle buy VWAP formatting using robust data utilities
+                buy_vwap = safe_numeric_conversion(selected_trade_data['buyVwap'])
+                buy_vwap_display = format_crypto_value(buy_vwap, max_decimals=18)
                 st.write(f"**Buy VWAP:** {buy_vwap_display}")
 
-                # Handle sell volume formatting
-                try:
-                    sell_vol = pd.to_numeric(selected_trade_data['sellVolume'], errors='coerce')
-                    if pd.notna(sell_vol):
-                        sell_vol_display = f"{sell_vol:,.2f}"
-                    else:
-                        sell_vol_display = "N/A"
-                except (ValueError, TypeError):
-                    sell_vol_display = "N/A"
+                # Handle sell volume formatting using robust data utilities
+                sell_vol = safe_numeric_conversion(selected_trade_data['sellVolume'])
+                sell_vol_display = f"{sell_vol:,.2f}"
                 st.write(f"**Sell Volume:** {sell_vol_display}")
 
-                # Handle sell VWAP formatting
-                try:
-                    sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
-                    if pd.notna(sell_vwap):
-                        if sell_vwap < 0.00000001:  # Very small numbers
-                            sell_vwap_display = f"${sell_vwap:.18f}"
-                        elif sell_vwap < 0.01:
-                            sell_vwap_display = f"${sell_vwap:.8f}"
-                        else:
-                            sell_vwap_display = f"${sell_vwap:.4f}"
-                    else:
-                        sell_vwap_display = "N/A"
-                except (ValueError, TypeError):
-                    sell_vwap_display = "N/A"
+                # Handle sell VWAP formatting using robust data utilities
+                sell_vwap = safe_numeric_conversion(selected_trade_data['sellVwap'])
+                sell_vwap_display = format_crypto_value(sell_vwap, max_decimals=18)
                 st.write(f"**Sell VWAP:** {sell_vwap_display}")
         
         with col2:
             # Transaction data
             st.markdown("#### 💰 Transaction Data")
-            # Handle buy total calculation
-            try:
-                buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
-                buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
-                if pd.notna(buy_vol) and pd.notna(buy_vwap):
-                    buy_total = buy_vol * buy_vwap
-                    if buy_total < 0.00000001:  # Very small numbers
-                        buy_total_display = f"${buy_total:.18f}"
-                    elif buy_total < 0.01:
-                        buy_total_display = f"${buy_total:.8f}"
-                    else:
-                        buy_total_display = f"${buy_total:.2f}"
-                else:
-                    buy_total_display = "N/A"
-            except (ValueError, TypeError):
-                buy_total_display = "N/A"
+            # Handle buy total calculation using robust data utilities
+            buy_vol = safe_numeric_conversion(selected_trade_data['buyVolume'])
+            buy_vwap = safe_numeric_conversion(selected_trade_data['buyVwap'])
+            buy_total = safe_calculation(lambda bv, bvwap: bv * bvwap, buy_vol, buy_vwap)
+            buy_total_display = format_crypto_value(buy_total, max_decimals=18)
             st.metric("Buy Total", buy_total_display)
         
-            # Handle sell total calculation
-            try:
-                sell_vol = pd.to_numeric(selected_trade_data['sellVolume'], errors='coerce')
-                sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
-                if pd.notna(sell_vol) and pd.notna(sell_vwap):
-                    sell_total = sell_vol * sell_vwap
-                    if sell_total < 0.00000001:  # Very small numbers
-                        sell_total_display = f"${sell_total:.18f}"
-                    elif sell_total < 0.01:
-                        sell_total_display = f"${sell_total:.8f}"
-                    else:
-                        sell_total_display = f"${sell_total:.2f}"
-                else:
-                    sell_total_display = "N/A"
-            except (ValueError, TypeError):
-                sell_total_display = "N/A"
+            # Handle sell total calculation using robust data utilities
+            sell_vol = safe_numeric_conversion(selected_trade_data['sellVolume'])
+            sell_vwap = safe_numeric_conversion(selected_trade_data['sellVwap'])
+            sell_total = safe_calculation(lambda sv, svwap: sv * svwap, sell_vol, sell_vwap)
+            sell_total_display = format_crypto_value(sell_total, max_decimals=18)
             st.metric("Sell Total", sell_total_display)
     
     # Card 2: Coin/Token Information
@@ -262,7 +215,7 @@ def show_arb_info():
                     if pd.notna(selected_trade_data[col]):
                         try:
                             # Try to convert to numeric for formatting
-                            numeric_val = pd.to_numeric(selected_trade_data[col], errors='coerce')
+                            numeric_val = safe_numeric_conversion(selected_trade_data[col])
                             if pd.notna(numeric_val):
                                 st.write(f"**{col.replace('_', ' ').title()}:** {numeric_val}")
                             else:
@@ -283,7 +236,7 @@ def show_arb_info():
                     if pd.notna(selected_trade_data[col]):
                         try:
                             # Try to convert to numeric for formatting
-                            numeric_val = pd.to_numeric(selected_trade_data[col], errors='coerce')
+                            numeric_val = safe_numeric_conversion(selected_trade_data[col])
                             if pd.notna(numeric_val):
                                 st.write(f"**{col.replace('_', ' ').title()}:** {numeric_val}")
                             else:
@@ -308,54 +261,21 @@ def show_arb_info():
         st.markdown("### 💰 Profit Calculation Breakdown")
         with st.container():
             if all(col in selected_trade_data for col in ['buyVolume', 'buyVwap', 'sellVolume', 'sellVwap']):
-                # Handle buy total calculation
-                try:
-                    buy_vol = pd.to_numeric(selected_trade_data['buyVolume'], errors='coerce')
-                    buy_vwap = pd.to_numeric(selected_trade_data['buyVwap'], errors='coerce')
-                    if pd.notna(buy_vol) and pd.notna(buy_vwap):
-                        buy_total = buy_vol * buy_vwap
-                        if buy_total < 0.00000001:  # Very small numbers
-                            buy_total_display = f"${buy_total:.18f}"
-                        elif buy_total < 0.01:
-                            buy_total_display = f"${buy_total:.8f}"
-                        else:
-                            buy_total_display = f"${buy_total:.2f}"
-                    else:
-                        buy_total_display = "N/A"
-                except (ValueError, TypeError):
-                    buy_total_display = "N/A"
+                # Handle buy total calculation using robust data utilities
+                buy_vol = safe_numeric_conversion(selected_trade_data['buyVolume'])
+                buy_vwap = safe_numeric_conversion(selected_trade_data['buyVwap'])
+                buy_total = safe_calculation(lambda bv, bvwap: bv * bvwap, buy_vol, buy_vwap)
+                buy_total_display = format_crypto_value(buy_total, max_decimals=18)
                 
-                # Handle sell total calculation
-                try:
-                    sell_vol = pd.to_numeric(selected_trade_data['sellVolume'], errors='coerce')
-                    sell_vwap = pd.to_numeric(selected_trade_data['sellVwap'], errors='coerce')
-                    if pd.notna(sell_vol) and pd.notna(sell_vwap):
-                        sell_total = sell_vol * sell_vwap
-                        if sell_total < 0.00000001:  # Very small numbers
-                            sell_total_display = f"${sell_total:.18f}"
-                        elif sell_total < 0.01:
-                            sell_total_display = f"${sell_total:.8f}"
-                        else:
-                            sell_total_display = f"${sell_total:.2f}"
-                    else:
-                        sell_total_display = "N/A"
-                except (ValueError, TypeError):
-                    sell_total_display = "N/A"
+                # Handle sell total calculation using robust data utilities
+                sell_vol = safe_numeric_conversion(selected_trade_data['sellVolume'])
+                sell_vwap = safe_numeric_conversion(selected_trade_data['sellVwap'])
+                sell_total = safe_calculation(lambda sv, svwap: sv * svwap, sell_vol, sell_vwap)
+                sell_total_display = format_crypto_value(sell_total, max_decimals=18)
                 
-                # Handle profit calculation
-                try:
-                    profit_val = pd.to_numeric(selected_trade_data['idealProfit'], errors='coerce')
-                    if pd.notna(profit_val):
-                        if profit_val < 0.00000001:  # Very small numbers
-                            profit_display = f"${profit_val:.18f}"
-                        elif profit_val < 0.01:
-                            profit_display = f"${profit_val:.8f}"
-                        else:
-                            profit_display = f"${profit_val:.2f}"
-                    else:
-                        profit_display = "N/A"
-                except (ValueError, TypeError):
-                    profit_display = "N/A"
+                # Handle profit calculation using robust data utilities
+                profit_val = safe_numeric_conversion(selected_trade_data['idealProfit'])
+                profit_display = format_crypto_value(profit_val, max_decimals=18)
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -369,38 +289,26 @@ def show_arb_info():
         st.markdown("### 📋 Complete Trade Data")
         formatted_trade = selected_trade_data.copy()
         
-        # Format numeric columns based on requirements - handle mixed data types
+        # Format numeric columns based on requirements using robust data utilities
         for col in formatted_trade.index:
+            # Get the scalar value from the Series - ensure it's a scalar
+            col_value = formatted_trade[col]
+            
+            # Convert pandas Series to scalar if needed
+            if hasattr(col_value, 'iloc') and hasattr(col_value, '__len__'):
+                try:
+                    col_value = col_value.iloc[0] if len(col_value) > 0 else None
+                except (IndexError, AttributeError):
+                    col_value = None
+            
             if col in ['idealProfit', 'buyVolume', 'sellVolume', 'buyTotal', 'sellTotal']:
-                # Convert to numeric first, then format
-                try:
-                    numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
-                    if pd.notna(numeric_val):
-                        if numeric_val < 0.00000001:  # Very small numbers
-                            formatted_trade[col] = f"{numeric_val:.18f}"
-                        elif numeric_val < 0.01:
-                            formatted_trade[col] = f"{numeric_val:.8f}"
-                        else:
-                            formatted_trade[col] = f"{numeric_val:,.2f}"
-                    else:
-                        formatted_trade[col] = "N/A"
-                except (ValueError, TypeError):
-                    formatted_trade[col] = "N/A"
+                # Use robust data utilities for formatting
+                numeric_val = safe_numeric_conversion(col_value)
+                formatted_trade[col] = format_crypto_value(numeric_val, max_decimals=18)
             elif col in ['buyVwap', 'sellVwap']:
-                # Convert to numeric first, then format with appropriate decimals
-                try:
-                    numeric_val = pd.to_numeric(formatted_trade[col], errors='coerce')
-                    if pd.notna(numeric_val):
-                        if numeric_val < 0.00000001:  # Very small numbers
-                            formatted_trade[col] = f"{numeric_val:.18f}"
-                        elif numeric_val < 0.01:
-                            formatted_trade[col] = f"{numeric_val:.8f}"
-                        else:
-                            formatted_trade[col] = f"{numeric_val:.4f}"
-                    else:
-                        formatted_trade[col] = "N/A"
-                except (ValueError, TypeError):
-                    formatted_trade[col] = "N/A"
+                # Use robust data utilities for VWAP formatting
+                numeric_val = safe_numeric_conversion(col_value)
+                formatted_trade[col] = format_crypto_value(numeric_val, max_decimals=18)
             elif col == 'dateTraded':
                 # Format date/time
                 try:

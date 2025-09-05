@@ -136,6 +136,33 @@ def convert_datetime_to_iso(data_list):
                 row[key] = value.isoformat()
     return data_list
 
+def convert_timestamps(data_list):
+    """Convert timestamp fields to proper datetime objects for database storage"""
+    for row in data_list:
+        for key, value in row.items():
+            # Convert timestamp fields to datetime objects
+            if 'timestamp' in key.lower() and value:
+                if isinstance(value, str):
+                    try:
+                        # Try to parse ISO format first
+                        row[key] = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                    except ValueError:
+                        try:
+                            # Try to parse as Unix timestamp
+                            row[key] = datetime.fromtimestamp(float(value))
+                        except (ValueError, TypeError):
+                            # If all else fails, keep original value
+                            logger.warning(f"⚠️ Could not parse timestamp {key}: {value}")
+                            pass
+                elif isinstance(value, (int, float)):
+                    # Convert Unix timestamp to datetime
+                    try:
+                        row[key] = datetime.fromtimestamp(value)
+                    except (ValueError, TypeError):
+                        logger.warning(f"⚠️ Could not convert timestamp {key}: {value}")
+                        pass
+    return data_list
+
 def create_table_if_not_exists(table_name, columns_definition, max_retries=3, retry_delay=5):
     """Create a table if it doesn't exist with retry logic"""
     for attempt in range(max_retries):

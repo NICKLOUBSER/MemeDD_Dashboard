@@ -83,39 +83,45 @@ def process_arb_transactions():
             # Process arbitrage transactions
             processed_transactions = []
             for tx in raw_data:
-                # Calculate profit
-                buy_amount = Decimal(tx.get('buyamount', '0'))
-                sell_amount = Decimal(tx.get('sellamount', '0'))
-                buy_price = Decimal(tx.get('buyprice', '0'))
-                sell_price = Decimal(tx.get('sellprice', '0'))
+                # Map to actual arbtransaction table field names
+                buy_amount = Decimal(tx.get('buybase', '0'))
+                sell_amount = Decimal(tx.get('sellbase', '0'))
+                buy_price = Decimal(tx.get('buyvwap', '0'))
+                sell_price = Decimal(tx.get('sellvwap', '0'))
+                buy_volume = Decimal(tx.get('buyvolume', '0'))
+                sell_volume = Decimal(tx.get('sellvolume', '0'))
                 
-                profit = sell_amount - buy_amount
-                profit_percentage = (profit / buy_amount * 100) if buy_amount > 0 else 0
+                # Calculate profit from idealProfit field
+                ideal_profit = Decimal(tx.get('idealprofit', '0'))
+                profit = ideal_profit
+                profit_percentage = (profit / abs(buy_volume) * 100) if buy_volume != 0 else 0
                 win_loss = 'WIN' if profit > 0 else 'LOSS'
                 
                 # Create processed transaction record
                 processed_tx = {
-                    'tokenaddress': tx.get('tokenaddress'),
+                    'tokenaddress': tx.get('buybase'),  # Use buyBase as token address (e.g., TBC)
                     'buyexchange': tx.get('buyexchange'),
                     'sellexchange': tx.get('sellexchange'),
                     'buyamount': str(buy_amount),
                     'sellamount': str(sell_amount),
                     'buyprice': str(buy_price),
                     'sellprice': str(sell_price),
-                    'buytimestamp': tx.get('buytimestamp'),
-                    'selltimestamp': tx.get('selltimestamp'),
+                    'buytimestamp': tx.get('datetraded'),
+                    'selltimestamp': tx.get('datetraded'),
                     'profit': str(profit),
                     'profitpercentage': str(profit_percentage),
                     'win_loss': win_loss,
-                    'symbol': tx.get('symbol'),
-                    'name': tx.get('name'),
+                    'symbol': tx.get('buyquote'),  # Use buyQuote as symbol (e.g., USDT)
+                    'name': tx.get('buybase'),     # Use buyBase as name (e.g., TBC)
                     'row_hash': generate_row_hash({
-                        'tokenaddress': tx.get('tokenaddress'),
-                        'buyamount': str(buy_amount),
-                        'sellamount': str(sell_amount),
-                        'buytimestamp': tx.get('buytimestamp'),
-                        'selltimestamp': tx.get('selltimestamp'),
-                        'profit': str(profit)
+                        'id': tx.get('id'),
+                        'datetraded': tx.get('datetraded'),
+                        'buybase': tx.get('buybase'),
+                        'buyquote': tx.get('buyquote'),
+                        'buyexchange': tx.get('buyexchange'),
+                        'sellexchange': tx.get('sellexchange'),
+                        'idealprofit': str(ideal_profit),
+                        'botid': tx.get('botid')
                     })
                 }
                 

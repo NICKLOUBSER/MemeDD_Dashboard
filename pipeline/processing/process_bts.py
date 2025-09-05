@@ -62,28 +62,36 @@ def create_processed_bts_table():
     create_table_if_not_exists('processed_bts', columns_definition)
 
 async def fetch_coin_info(session, token_address):
-    """Fetch coin info from Helius API"""
+    """Fetch coin info from Helius DAS API"""
     try:
         if not HELIUS_RPC_URL:
             logger.warning("⚠️ HELIUS_API_KEY not configured")
             return None, None
             
-        # Use Helius Enhanced Transactions API to get token metadata
-        url = f"https://api.helius.xyz/v0/token-metadata?api-key={HELIUS_API_KEY}"
+        # Use Helius DAS API to get token metadata
+        url = f"{HELIUS_RPC_URL}"
         payload = {
-            "mintAccounts": [token_address],
-            "includeOffChain": True,
-            "disableCache": False
+            "jsonrpc": "2.0",
+            "id": "1",
+            "method": "getAsset",
+            "params": {
+                "id": token_address,
+                "displayOptions": {
+                    "showFungible": True
+                }
+            }
         }
         
         async with session.post(url, json=payload) as response:
             if response.status == 200:
                 data = await response.json()
-                if data and len(data) > 0:
-                    token_data = data[0]
-                    # Extract symbol and name from Helius response
-                    symbol = token_data.get('onChainMetadata', {}).get('metadata', {}).get('data', {}).get('symbol')
-                    name = token_data.get('onChainMetadata', {}).get('metadata', {}).get('data', {}).get('name')
+                if data and 'result' in data:
+                    token_data = data['result']
+                    # Extract symbol and name from DAS response
+                    content = token_data.get('content', {})
+                    metadata = content.get('metadata', {})
+                    symbol = metadata.get('symbol')
+                    name = metadata.get('name')
                     return symbol, name
                 else:
                     logger.warning(f"⚠️ No token data found for {token_address}")
